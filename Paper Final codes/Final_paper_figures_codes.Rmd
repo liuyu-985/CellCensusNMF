@@ -10,7 +10,32 @@ library(forcats)
 library(stringr)
 library(purrr)
 
-load("/Users/lyuti/Documents/Census analysis results/summary_stats_celltypes.RData")
+library(data.table)
+library(singlet)
+
+emb_path <- "/mnt/projects/debruinz_project/yu_ting/adata_obsm.csv"
+obs_path <- "/mnt/projects/debruinz_project/yu_ting/adata_obs.csv"
+
+emb <- fread(emb_path, header = TRUE)
+obs <- fread(obs_path,  header = TRUE)
+
+
+if ("V1" %in% names(emb)) emb[, V1 := NULL]
+if ("V1" %in% names(obs)) obs[, V1 := NULL]
+
+stopifnot(nrow(emb) == nrow(obs))
+
+all_na <- rowSums(is.na(emb)) == ncol(emb)
+emb    <- emb[!all_na]
+obs    <- obs[!all_na]
+
+emb_mat <- t(as.matrix(emb))       
+cell_types <- obs$cell_type
+
+stopifnot(ncol(emb_mat) == length(cell_types))
+
+summary_stats <- MetadataSummary(emb_mat, cell_types)
+
 colnames(summary_stats) <- as.numeric(colnames(summary_stats)) + 1
 mw <- t(summary_stats)
  # Panel A/B/C: NMF factor k = 53, 104, 200
@@ -250,7 +275,7 @@ make_title_panel <- function(txt){
 
 pCT   <- make_title_panel("Cell Type")
 pNMF  <- make_title_panel("NMF Factor")
-blank <- make_title_panel("")    # row 3 placeholder
+blank <- make_title_panel("")    
 
 
 figure_full <- plot_grid(
@@ -263,7 +288,7 @@ figure_full <- plot_grid(
   rel_heights = c(1,   1, 1),
   align       = "hv",
   axis        = "tblr",
-  labels      = NULL    # turn off auto A–I
+  labels      = NULL    
 )
 
 figure_full <- ggdraw() +
@@ -302,22 +327,85 @@ ggsave("Figure2.pdf",
 
 # figure 3 -- W matrix
 library(ComplexHeatmap)
-library(circlize)    # for colorRamp2()
-library(viridis)     # for viridis()
-library(grid)        # for rasterGrob() + grid.grabExpr()
-library(png)         # for readPNG()
-library(cowplot)     # for ggdraw(), draw_grob(), draw_plot(), draw_plot_label(), ggsave()
+library(circlize)   
+library(viridis)     
+library(grid)        
+library(png)         
+library(cowplot)     
 library(dplyr)
 library(ggplot2)
 library(matrixStats)
 
-# PANEL A: ComplexHeatmap of overall heatmap
-padj_mat <- read.csv(
-  "/Users/lyuti/Documents/Slurm job script/200 factors W matrix/padj_matrix_new_allFactors.csv",
-  row.names   = 1,
-  check.names = FALSE
+library(msigdbr)
+library(fgsea)
+library(dplyr)
+library(tidyr)
+library(BiocParallel)
+
+main_dir <- "/mnt/projects/debruinz_project/yu_ting"
+
+var_data <- read.csv(
+  file.path(main_dir, "adata_var_metadata_unique.csv"),
+  stringsAsFactors = FALSE
 )
 
+emb_raw <- read.csv(
+  file.path(main_dir, "adata_var_embeddings_unique.csv"),
+  stringsAsFactors = FALSE
+)
+
+
+stopifnot(nrow(var_data) == nrow(emb_raw))
+
+
+msigdbr_df   <- msigdbr(species = "Homo sapiens", category = "C5")
+msigdbr_list <- split(msigdbr_df$gene_symbol, msigdbr_df$gs_name)
+
+
+n_factors <- ncol(emb_raw)
+all_fgsea <- vector("list", length = n_factors)
+bp        <- MulticoreParam(workers = 30)
+
+
+for (i in seq_len(n_factors)) {
+  factor_name <- colnames(emb_raw)[i]
+
+  
+  rv <- emb_raw[[i]] %>% as.numeric()
+  names(rv) <- var_data$feature_name
+  rv <- sort(rv[rv != 0], decreasing = TRUE)
+
+  
+  fg <- fgsea(
+    pathways  = msigdbr_list,
+    stats     = rv,
+    eps       = 0.0,
+    scoreType = "pos",
+    minSize   = 25,
+    maxSize   = 500,
+    BPPARAM   = bp
+  )
+
+ 
+  all_fgsea[[i]] <- fg %>%
+    select(pathway, NES, padj) %>%
+    mutate(factor = factor_name)
+}
+
+combined <- bind_rows(all_fgsea)
+
+nes_mat <- combined %>%
+  select(pathway, factor, NES) %>%
+  pivot_wider(names_from = factor, values_from = NES) %>%
+  arrange(pathway)
+
+padj_mat <- combined %>%
+  select(pathway, factor, padj) %>%
+  pivot_wider(names_from = factor, values_from = padj) %>%
+  arrange(pathway)
+
+
+# PANEL A: ComplexHeatmap of overall heatmap
 padj_mat[ is.na(padj_mat) ] <- 1
 rows_to_keep      <- apply(padj_mat, 1, function(x) any(x < 0.001))
 padj_mat_filtered <- padj_mat[rows_to_keep, , drop = FALSE]
@@ -372,13 +460,90 @@ library(tidyr)
 library(ggplot2)
 library(viridis)
 
-padj_mat <- read.csv(
-  "/Users/lyuti/Documents/Slurm job script/200 factors W matrix/padj_matrix_narrow.csv",
-  row.names = 1, check.names = FALSE
-)
-padj_mat[ is.na(padj_mat) ] <- 1
-rows_to_keep      <- apply(padj_mat, 1, function(x) any(x < 0.001))
-padj_mat_filtered <- padj_mat[rows_to_keep, , drop = FALSE]
+main_dir <- "/mnt/projects/debruinz_project/yu_ting"
+
+var_data <- read.csv(file.path(main_dir, "adata_var_metadata_unique.csv"),
+                     stringsAsFactors = FALSE)
+emb_raw  <- read.csv(file.path(main_dir, "adata_var_embeddings_unique.csv"),
+                     stringsAsFactors = FALSE)
+stopifnot(nrow(var_data) == nrow(emb_raw))
+
+
+msigdbr_df   <- msigdbr(species = "Homo sapiens", category = "C5")
+msigdbr_list <- split(msigdbr_df$gene_symbol, msigdbr_df$gs_name)
+
+
+gs_sizes     <- lengths(msigdbr_list)
+msigdbr_list <- msigdbr_list[gs_sizes <= 300]
+
+n_factors <- ncol(emb_raw)
+all_fgsea <- vector("list", n_factors)
+bp        <- SerialParam()  
+
+for (i in seq_len(n_factors)) {
+  f_name <- colnames(emb_raw)[i]
+
+  
+  rv <- as.numeric(emb_raw[[i]])
+  names(rv) <- var_data$feature_name
+  rv <- rv[is.finite(rv) & rv != 0]
+  if (length(rv) < 25) next
+  set.seed(42)
+  rv <- rv + rnorm(length(rv), sd = .Machine$double.eps)
+  rv <- sort(rv, decreasing = TRUE)
+
+  fg <- fgsea(
+    pathways  = msigdbr_list,
+    stats     = rv,
+    eps       = 0.0,
+    scoreType = "pos",
+    minSize   = 25,
+    maxSize   = 300,
+    BPPARAM   = bp
+  )
+
+  all_fgsea[[i]] <- fg %>%
+    select(pathway, NES, padj) %>%
+    mutate(factor = f_name)
+}
+
+
+combined <- bind_rows(all_fgsea)
+sig_counts <- combined %>%
+  group_by(pathway) %>%
+  summarize(n_sig = sum(padj < 0.05), .groups = "drop")
+
+combined <- combined %>%
+  filter(pathway %in% sig_counts$pathway[sig_counts$n_sig <= 50])
+
+
+nes_mat_narrow <- combined %>%
+  select(pathway, factor, NES) %>%
+  pivot_wider(names_from = factor, values_from = NES) %>%
+  arrange(pathway)
+
+padj_mat_narrow <- combined %>%
+  select(pathway, factor, padj) %>%
+  pivot_wider(names_from = factor, values_from = padj) %>%
+  arrange(pathway)
+
+
+nes_mat2 <- nes_mat_narrow %>%
+  column_to_rownames("pathway")
+
+var_nes <- apply(nes_mat2, 1, var, na.rm = TRUE)
+
+q25 <- quantile(var_nes, 0.25, na.rm = TRUE)
+
+keep_var <- names(var_nes)[!is.na(var_nes) & var_nes >= q25]
+
+nes_mat_narrow  <- nes_mat_narrow  %>% filter(pathway %in% keep_var)
+padj_mat_narrow <- padj_mat_narrow %>% filter(pathway %in% keep_var)
+
+
+padj_mat_narrow[ is.na(padj_mat_narrow) ] <- 1
+rows_to_keep      <- apply(padj_mat_narrow, 1, function(x) any(x < 0.001))
+padj_mat_filtered <- padj_mat_narrow[rows_to_keep, , drop = FALSE]
 
 padj_mat_filtered <- padj_mat_filtered[!grepl("^HP", rownames(padj_mat_filtered)), , drop = FALSE]
 padj_matrix <- as.matrix(padj_mat_filtered)
@@ -387,13 +552,9 @@ smallest    <- min(all_pos, na.rm = TRUE)
 padj_matrix[padj_matrix == 0] <- smallest
 logp_matrix <- -log10(padj_matrix)
 
-nes_mat <- read.csv(
-  "/Users/lyuti/Documents/Slurm job script/200 factors W matrix/nes_matrix_narrow.csv",
-  row.names = 1, check.names = FALSE
-)
-nes_mat[is.na(nes_mat)] <- 0
-nes_mat <- nes_mat[!grepl("^HP", rownames(nes_mat)), , drop = FALSE]
-er_mat <- nes_mat + 1
+nes_mat_narrow[is.na(nes_mat_narrow)] <- 0
+nes_mat_narrow <- nes_mat_narrow[!grepl("^HP", rownames(nes_mat_narrow)), , drop = FALSE]
+er_mat <- nes_mat_narrow + 1
 nes_matrix  <- as.matrix(er_mat)
 
 # vector of pathways to drop (generic)
@@ -408,7 +569,6 @@ drop_paths <- c(
   "GOCC_CONTRACTILE_FIBER",
   "GOCC_CYTOPLASMIC_REGION",
   "GOCC_LARGE_RIBOSOMAL_SUBUNIT",
-  # Section 1: Core “housekeeping” processes
   "GOBP_DNA_DEPENDENT_DNA_REPLICATION",
   "GOBP_DNA_PACKAGING",
   "GOBP_DOUBLE_STRAND_BREAK_REPAIR",
@@ -431,7 +591,6 @@ drop_paths <- c(
   "GOMF_STRUCTURAL_CONSTITUENT_OF_RIBOSOME",
   "GOMF_ELECTRON_TRANSFER_ACTIVITY",
   "GOMF_PROTON_TRANSMEMBRANE_TRANSPORTER_ACTIVITY",
-  # Section 2: Broad signaling / regulation
   "GOBP_ADENYLATE_CYCLASE_MODULATING_G_PROTEIN_COUPLED_RECEPTOR_SIGNALING_PATHWAY",
   "GOBP_CELL_CELL_ADHESION_VIA_PLASMA_MEMBRANE_ADHESION_MOLECULES",
   "GOBP_HOMOPHILIC_CELL_ADHESION_VIA_PLASMA_MEMBRANE_ADHESION_MOLECULES",
@@ -660,15 +819,15 @@ ggsave(
 library(Seurat)
 library(cowplot)
 library(magick)
-library(ggplotify)    # to turn base R plots into ggplots
-library(grid)         # for rasterGrob()
+library(ggplotify)    
+library(grid)         
 library(RColorBrewer)
 library(ggplot2)
 library(dplyr)
 library(scales) 
-library(ragg)         # for a reliable off‑screen PNG device
+library(ragg)         
 library(png)
-library(patchwork)    # patchwork for layout
+library(patchwork)    
 library(AnnotationDbi)
 library(org.Hs.eg.db)
 library(msigdbr)
@@ -676,13 +835,170 @@ library(fgsea)
 library(ggrepel)
 library(tibble)
 library(viridis)
-library(clue)              # solve_LSAP (Hungarian)
+library(clue)              
 library(ComplexHeatmap)
 library(circlize)
 library(viridisLite)
 
-seurat_norm <- readRDS("/mnt/projects/debruinz_project/yu_ting/seurat_norm.rds")
-"/Users/lyuti/Documents/Slurm job script/seurat_norm.rds"
+
+library(reticulate)
+use_virtualenv("r-reticulate", required = TRUE)
+py_install(c("scanpy", "anndata"), envname = "r-reticulate", pip = TRUE)
+sc    <- import("scanpy")
+library(Matrix)
+adata <- sc$read_h5ad(
+  "/mnt/projects/debruinz_project/yu_ting/200 factors W matrix/transfer_learning_data.h5ad"
+) 
+counts_mat <- Matrix(adata$X, sparse = TRUE)
+counts_mat <- t(counts_mat)
+
+rownames(counts_mat) <- adata$var_names$to_list()  
+colnames(counts_mat) <- adata$obs_names$to_list()  
+dim(counts_mat)
+
+seurat_obj <- CreateSeuratObject(
+  counts    = counts_mat,
+  project   = "transfer_learning",
+  assay     = "RNA",
+  min.cells = 3,
+  min.features = 200
+)
+
+colnames(seurat_obj@meta.data)
+obs_df  <- as.data.frame(py_to_r(adata$obs))
+rownames(obs_df) <- adata$obs_names$to_list()
+colnames(obs_df)
+celltype_meta <- obs_df[, "cell_type", drop = FALSE]
+all(rownames(celltype_meta) == colnames(seurat_obj))
+disease_meta <- obs_df[, "disease", drop = FALSE]
+all(rownames(disease_meta) == colnames(seurat_obj))
+
+seurat_obj <- AddMetaData(
+     object   = seurat_obj,
+     metadata = celltype_meta
+ )
+celltype_meta <- seurat_obj@meta.data["cell_type"]
+seurat_obj <- AddMetaData(
+     object   = seurat_obj,
+     metadata = disease_meta
+ )
+disease_meta <- seurat_obj@meta.data["disease"]
+
+raw_counts <- GetAssayData(
+     object = seurat_obj,
+     assay  = "RNA",
+     layer  = "counts"
+ )
+
+
+library(readr)
+w_ref <- read_csv("/mnt/projects/debruinz_project/yu_ting/adata_var_embeddings_unique.csv")
+var_meta <- read_csv("/mnt/projects/debruinz_project/yu_ting/adata_var_metadata_unique.csv")
+intersect(rownames(raw_counts), var_meta$feature_id)
+w_ref <- w_ref %>% mutate(index = row_number())
+var_meta <- var_meta %>% mutate(index = row_number())
+w_ref <- left_join(var_meta %>% select(index, feature_id),
+                     w_ref,
+                     by = "index")
+
+w_ref_matrix <- w_ref %>%
+  column_to_rownames(var = "feature_id") %>% 
+  select(-index) %>%                           
+  as.matrix()                                  
+
+dim(w_ref_matrix)
+
+
+common_genes <- intersect(rownames(raw_counts), rownames(w_ref_matrix))
+length(common_genes) 
+raw_counts_sub  <- raw_counts[common_genes,    , drop = FALSE]
+w_ref_matrix_sub      <- w_ref_matrix[common_genes,  , drop = FALSE]
+dim(raw_counts_sub)  
+dim(w_ref_matrix_sub) 
+
+
+counts_sub <- raw_counts_sub
+seurat_norm <- CreateSeuratObject(
+  counts    = counts_sub,
+  assay     = "alignedRNA",
+  project   = "transfer_learning"
+)
+seurat_norm <- AddMetaData(
+     object   = seurat_norm,
+     metadata = celltype_meta
+ )
+
+seurat_norm <- AddMetaData(
+     object   = seurat_norm,
+     metadata = disease_meta
+ )
+
+seurat_norm <- NormalizeData(
+  seurat_norm,
+  assay                 = "alignedRNA",
+  normalization.method  = "LogNormalize",
+  scale.factor          = 1e4
+)
+
+
+library(singlet)
+library(SingleCellExperiment)
+
+cv_data <- cross_validate_nmf(
+  A            = norm_mat,
+  ranks        = 2:90,
+  n_replicates = 1,
+  trace_test_mse = 1,
+  L1           = 0,
+  tol          = -1,
+  tol_overfit  = Inf
+)
+plot(cv_data)
+
+best_rank <- 70
+A <- as(norm_mat, "dgCMatrix")
+set.seed(42)
+nmf_mod <- run_nmf(
+     A,               
+     rank     = best_rank,
+     verbose  = FALSE
+)
+W_deNovo <- nmf_mod$w    
+H_deNovo <- nmf_mod$h   
+
+library(Seurat)
+
+colnames(H_deNovo) <- colnames(seurat_norm)          
+rownames(H_deNovo) <- paste0("NMF", seq_len(nrow(H_deNovo)))  
+
+rownames(W_deNovo) <- rownames(seurat_norm)   
+colnames(W_deNovo) <- rownames(H_deNovo)      
+ 
+seurat_norm[["nmf"]] <- CreateDimReducObject(
+  embeddings = t(H_deNovo),   
+  loadings   = W_deNovo,      
+  key        = "NMF_",        
+  assay      = "alignedRNA"   
+)
+
+library(RcppML)
+
+common_genes <- intersect(rownames(norm_mat), rownames(w_ref_matrix_sub))
+A_sub <- norm_mat[common_genes,    , drop = FALSE]  
+W_sub <-  w_ref_matrix_sub[common_genes, , drop = FALSE] 
+
+
+H_proj <- project(A_sub, w = W_sub)
+
+rownames(H_proj) <- paste0("NMFproj", seq_len(nrow(H_proj)))
+colnames(H_proj) <- colnames(norm_mat)
+
+seurat_norm[["nmf_proj"]] <- CreateDimReducObject(
+  embeddings = t(H_proj),  
+  loadings   = W_sub,      
+  key        = "NMFproj_",
+  assay      = "alignedRNA"
+)
 
 # Panel B and C
 cf_cells  <- WhichCells(seurat_norm, expression = disease == "cystic fibrosis")
@@ -737,7 +1053,7 @@ p_proj <- p_proj +
   ggtitle("Cystic Fibrosis Cells on\nReference NMF Model UMAP Embeddings") +
   labs(x = "UMAP_1", y = "UMAP_2") +
   theme(
-    legend.position = "none",    # hide color legend
+    legend.position = "none",    
     axis.text.x     = element_blank(),
     axis.text.y     = element_blank(),
     axis.ticks.x    = element_blank(),
@@ -771,7 +1087,7 @@ p_new <- p_new +
   ggtitle("Cystic Fibrosis Cells on\nNew NMF Model UMAP Embeddings") +
   labs(x = "UMAP_1", y = "UMAP_2") +
   theme(
-    legend.position = "none",    # hide color legend
+    legend.position = "none",    
     axis.text.x     = element_blank(),
     axis.text.y     = element_blank(),
     axis.ticks.x    = element_blank(),
@@ -870,10 +1186,8 @@ for(col in c("NMF_1","NMFproj_137")) {
 
 base_theme <- theme_minimal() +
   theme(
-    # remove all grid lines
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
-    # draw axis lines
     axis.line   = element_line(color = "black"),
     axis.text.x     = element_blank(),
     axis.text.y     = element_blank(),
@@ -909,8 +1223,8 @@ pF <- FeaturePlot(
   base_theme + labs(x = "UMAP_1", y = "UMAP_2")+ theme(legend.position = "none")
 
 # Panel H
-W_ref <- as.matrix(Loadings(seurat_norm[["nmf_proj"]]))  # genes × k_ref
-W_new <- as.matrix(Loadings(seurat_norm[["nmf"]]    ))  # genes × k_new
+W_ref <- as.matrix(Loadings(seurat_norm[["nmf_proj"]]))  
+W_new <- as.matrix(Loadings(seurat_norm[["nmf"]]    ))  
 
 
 common_genes <- intersect(rownames(W_ref), rownames(W_new))
@@ -926,7 +1240,7 @@ unit_cols <- function(M){
 }
 R <- unit_cols(W_ref)
 N <- unit_cols(W_new)
-S <- t(R) %*% N                    # k_ref × k_new (cosine)
+S <- t(R) %*% N                    
 
 
 pad_to_square <- function(M, pad_value){
@@ -988,8 +1302,8 @@ gH <- grid.grabExpr(draw(pH, heatmap_legend_side = "right"))
 pH <- ggdraw() + draw_plot(gH, 0, 0, 1, 1) + labs(tag = "H")
 
 # Panel I
-W_new  <- seurat_norm@reductions$nmf@feature.loadings       # genes × 69
-W_proj <- seurat_norm@reductions$nmf_proj@feature.loadings  # genes × 200
+W_new  <- seurat_norm@reductions$nmf@feature.loadings       
+W_proj <- seurat_norm@reductions$nmf_proj@feature.loadings  
 
 
 sym_map <- mapIds(
@@ -1046,7 +1360,6 @@ exclude <- c("STEM_CELL","GOCC_IMMUNOGLOBULIN_COMPLEX",
 "GOCC_CONTRACTILE_FIBER",
 "GOCC_CYTOPLASMIC_REGION",
 "GOCC_LARGE_RIBOSOMAL_SUBUNIT",
-# Section 1: Core “housekeeping” processes
 "GOBP_DNA_DEPENDENT_DNA_REPLICATION",
 "GOBP_DNA_PACKAGING",
 "GOBP_DOUBLE_STRAND_BREAK_REPAIR",
@@ -1069,7 +1382,6 @@ exclude <- c("STEM_CELL","GOCC_IMMUNOGLOBULIN_COMPLEX",
 "GOMF_STRUCTURAL_CONSTITUENT_OF_RIBOSOME",
 "GOMF_ELECTRON_TRANSFER_ACTIVITY",
 "GOMF_PROTON_TRANSMEMBRANE_TRANSPORTER_ACTIVITY",
-# Section 2: Broad signaling / regulation
 "GOBP_ADENYLATE_CYCLASE_MODULATING_G_PROTEIN_COUPLED_RECEPTOR_SIGNALING_PATHWAY",
 "GOBP_CELL_CELL_ADHESION_VIA_PLASMA_MEMBRANE_ADHESION_MOLECULES",
 "GOBP_HOMOPHILIC_CELL_ADHESION_VIA_PLASMA_MEMBRANE_ADHESION_MOLECULES",
@@ -1298,11 +1610,9 @@ make_panel_A <- function(path,
   cur_ar  <- info$height / info$width
 
   if (cur_ar > target_ar) {
-    # image is too tall -> extend width
     new_w <- as.integer(info$height / target_ar)
     new_h <- info$height
   } else {
-    # image is too wide -> extend height
     new_w <- info$width
     new_h <- as.integer(info$width * target_ar)
   }
