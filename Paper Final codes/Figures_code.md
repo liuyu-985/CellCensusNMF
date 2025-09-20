@@ -1,9 +1,7 @@
 Figures – Code & Results
 ================
 
-# —- setup —-
-
-## figure 2 – H matrix
+## Figure 2 – H matrix
 
 Loading the necessary libraries for Figure 2
 
@@ -358,7 +356,7 @@ ggsave("Figure2.pdf",
        dpi    = 300)
 ```
 
-## figure 3 – W matrix
+## Figure 3 – W matrix
 
 Loading the necessary libraries for Figure 3
 
@@ -380,7 +378,7 @@ library(tidyr)
 library(BiocParallel)
 ```
 
-## Fgsea analysis for Figure 3 panel A.
+## Fgsea analysis for Figure 3 panel A
 
 This chunk only runs in *full* mode.
 
@@ -450,7 +448,7 @@ padj_mat <- combined %>%
 
 ## Figure 3 — W matrix panel A
 
-The overall heatmap of genes sets and factors
+The overall heatmap of genes sets and factors.
 
 ``` r
 if (!exists("padj_mat")) padj_mat <- padj_all
@@ -516,7 +514,7 @@ library(ggplot2)
 library(viridis)
 ```
 
-## Fgsea analysis for Figure 3 panel B.
+## Fgsea analysis for Figure 3 panel B
 
 This chunk only runs in *full* mode.
 
@@ -896,9 +894,9 @@ ggsave(
 )
 ```
 
-## figure 4 —reference learning
+## Figure 4 — Reference learning
 
-Loading the necessary libraries for Figure 4
+Loading the necessary libraries for Figure 4.
 
 ``` r
 library(Seurat)
@@ -926,9 +924,9 @@ library(circlize)
 library(viridisLite)
 ```
 
-## The Seurate object
+## The Seurat object
 
-Store the new nmf data, project nmf data and UMAP visulization
+Store the new NMF data, project NMF data and UMAP visulization.
 
 ``` r
 library(reticulate)
@@ -1112,10 +1110,9 @@ seurat_norm <- RunUMAP(
 )
 ```
 
-## Figure 4 — reference leanrning
+## Figure 4 — Panels
 
-Comparing the new data and project data in UMAP and heatmap and bubble
-plot.
+Comparing the new NMF data and project NMF data in UMAP with cell types, diseases and factors. Also, the cosine similiarity heatmap arocss the factors. And the bubble plot of highly similiar factors.
 
 ``` r
 # Panel B and C
