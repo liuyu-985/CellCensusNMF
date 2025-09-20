@@ -1,98 +1,13 @@
----
-title: "Figures – Code & Results"
-output:
-  github_document:
-    html_preview: false
-params:
-  mode:
-    label: "Mode"
-    value: "quick"
-    choices: ["quick", "full"]
-  src_dir:
-    label: "Source directory (absolute path)"
-    value: ""        # <-- NOT null; leave blank so the UI shows a text box
-    input: text
----
+Figures – Code & Results
+================
 
-# ---- setup ----
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-  echo = TRUE, message = FALSE, warning = FALSE,
-  dev = "ragg_png",  
-  dpi = 150,          
-  fig.retina = 1,
-  fig.path = "fig/", fig.retina = 1,
-  cache = TRUE, cache.path = "cache/figures_code/",
-  cache.lazy = FALSE,
-  cache.compress = FALSE
-)
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+# —- setup —-
 
-strip_index <- function(path) {
-  new <- sub("-[0-9]+(?=\\.[^.]+$)", "", path, perl = TRUE)  
-  file.copy(path, new, overwrite = TRUE)
-  new  # return the path knitr should write into the .md
-}
+## figure 2 – H matrix
 
-dir.create("fig", recursive = TRUE, showWarnings = FALSE)
-dir.create("cache/figures_code", recursive = TRUE, showWarnings = FALSE)
-
-suppressPackageStartupMessages({
-  if (!requireNamespace("here",  quietly = TRUE)) install.packages("here")
-  if (!requireNamespace("readr", quietly = TRUE)) install.packages("readr")
-  library(readr)
-})
-
-stop_if_missing <- function(p, label) {
-  if (!file.exists(p)) stop("Missing file for ", label, ":\n", p)
-}
-
-# Build absolute paths from a single root you pass at knit time (only needed in QUICK)
-getp <- function(...) {
-  if ((is.null(params$src_dir) || !nzchar(params$src_dir)) && identical(params$mode, "quick")) {
-    stop("Set params$src_dir (absolute path) in Knit-with-Parameters, or knit with mode='full'.")
-  }
-  file.path(params$src_dir, ...)
-}
-
-# ---- build_or_load ----
-if (identical(params$mode, "quick")) {
-  # Build 'paths' ONLY in quick mode (so full mode doesn’t require src_dir)
-  paths <- list(
-  summary_rdata = getp("summary_stats_celltypes.RData"),
-  padj_all      = getp("padj_matrix_new_allFactors.csv"),
-  nes_narrow    = getp("nes_matrix_narrow.csv"),
-  padj_narrow   = getp("padj_matrix_narrow.csv"),
-  seurat_rds    = getp("seurat_norm.rds"),
-  tl_plot_png   = getp("Transfer learning plot.png")
-)
-
-  stop_if_missing(paths$summary_rdata, "summary_stats_celltypes.RData")
-  stop_if_missing(paths$padj_all,      "padj_matrix_new_allFactors.csv")
-  stop_if_missing(paths$nes_narrow,    "nes_matrix_narrow.csv")
-  stop_if_missing(paths$padj_narrow,   "padj_matrix_narrow.csv")
-  stop_if_missing(paths$seurat_rds,    "seurat_norm.rds")
-
-  load(paths$summary_rdata)  # creates e.g. summary_stats
-  padj_all    <- readr::read_csv(paths$padj_all,      show_col_types = FALSE)
-  nes_narrow  <- readr::read_csv(paths$nes_narrow,    show_col_types = FALSE)
-  padj_narrow <- readr::read_csv(paths$padj_narrow,   show_col_types = FALSE)
-  seurat_norm <- readRDS(paths$seurat_rds)
-
-} else {
-  # FULL mode: you’ll recompute these later in the "full-only" chunks.
-  # summary_stats <- <expensive compute>
-  # padj_all      <- <compute/read>
-  # nes_narrow    <- <compute/read>
-  # padj_narrow   <- <compute/read>
-  # seurat_norm   <- <compute Seurat object>
-}
-```
-
-## figure 2 -- H matrix
 Loading the necessary libraries for Figure 2
 
-```{r figure2_library_loading}
+``` r
 library(ggplot2)
 library(cowplot)
 library(viridisLite)
@@ -111,10 +26,12 @@ library(singlet)
 ```
 
 ## Load embeddings
-We read the embedding/metadata CSVs and drop the stray `V1` column if present.  
+
+We read the embedding/metadata CSVs and drop the stray `V1` column if
+present.  
 This chunk only runs in *full* mode.
 
-```{r load_embeddings, eval = (params$mode == "full")}
+``` r
 emb_path <- "/mnt/projects/debruinz_project/yu_ting/adata_obsm.csv"
 obs_path <- "/mnt/projects/debruinz_project/yu_ting/adata_obs.csv"
 
@@ -140,9 +57,11 @@ summary_stats <- MetadataSummary(emb_mat, cell_types)
 ```
 
 ## Figure 2 — H matrix panels
-We show three example factors, their top cell types and their neighbor relationships.
 
-```{r figure2, fig.width=14, fig.height=10, fig.process=strip_index}
+We show three example factors, their top cell types and their neighbor
+relationships.
+
+``` r
 colnames(summary_stats) <- as.numeric(colnames(summary_stats)) + 1
 mw <- t(summary_stats)
  # Panel A/B/C: NMF factor k = 53, 104, 200
@@ -425,6 +344,11 @@ figure_full <- ggdraw() +
   theme(plot.margin = margin(0, 0, 0, 0, "cm"))
 
 figure_full
+```
+
+![](fig/figure2.png)<!-- -->
+
+``` r
 
 ggsave("Figure2.pdf",
        figure_full,
@@ -434,10 +358,11 @@ ggsave("Figure2.pdf",
        dpi    = 300)
 ```
 
-## figure 3 -- W matrix
+## figure 3 – W matrix
+
 Loading the necessary libraries for Figure 3
 
-```{r figure3_library_loading}
+``` r
 library(ComplexHeatmap)
 library(circlize)   
 library(viridis)     
@@ -455,11 +380,11 @@ library(tidyr)
 library(BiocParallel)
 ```
 
+## Fgsea analysis for Figure 3 panel A.
 
-## Fgsea analysis for Figure 3 panel A. 
 This chunk only runs in *full* mode.
 
-```{r fgsea_analysis, eval = (params$mode == "full")}
+``` r
 main_dir <- "/mnt/projects/debruinz_project/yu_ting"
 
 var_data <- read.csv(
@@ -523,11 +448,11 @@ padj_mat <- combined %>%
   arrange(pathway)
 ```
 
-
 ## Figure 3 — W matrix panel A
+
 The overall heatmap of genes sets and factors
 
-```{r figure3_panel_A}
+``` r
 if (!exists("padj_mat")) padj_mat <- padj_all
 if ("pathway" %in% colnames(padj_mat)) {
   padj_mat <- tibble::column_to_rownames(as.data.frame(padj_mat), "pathway")
@@ -591,10 +516,11 @@ library(ggplot2)
 library(viridis)
 ```
 
-## Fgsea analysis for Figure 3 panel B. 
+## Fgsea analysis for Figure 3 panel B.
+
 This chunk only runs in *full* mode.
- 
-```{r fgsea_analysis2, eval = (params$mode == "full")}
+
+``` r
 main_dir <- "/mnt/projects/debruinz_project/yu_ting"
 
 var_data <- read.csv(file.path(main_dir, "adata_var_metadata_unique.csv"),
@@ -677,8 +603,10 @@ padj_mat_narrow <- padj_mat_narrow %>% filter(pathway %in% keep_var)
 ```
 
 ## Figure 3 — W matrix panel B
+
 The bubble plot of discriminative factors and pathways.
-```{r figure3, fig.width=12, fig.height=12, out.width='100%', fig.process=strip_index}
+
+``` r
 if (!exists("padj_mat_narrow")) padj_mat_narrow <- padj_narrow
 if (!exists("nes_mat_narrow"))  nes_mat_narrow  <- nes_narrow
 
@@ -933,6 +861,8 @@ png(tmpfile, width = 1600, height = 1200, res = 150)
 
 draw(pA, heatmap_legend_side = "right")
 dev.off()
+#> agg_png 
+#>       2
 
 
 img   <- readPNG(tmpfile)
@@ -950,6 +880,11 @@ Figure3 <- plot_grid(
 )
 
 Figure3
+```
+
+<img src="fig/figure3.png" width="100%" />
+
+``` r
 
 ggsave(
   "Figure3.pdf",          
@@ -961,9 +896,11 @@ ggsave(
 )
 ```
 
-## figure 4 ---reference learning
+## figure 4 —reference learning
+
 Loading the necessary libraries for Figure 4
-```{r figure4_library_loading}
+
+``` r
 library(Seurat)
 library(cowplot)
 library(magick)
@@ -989,10 +926,11 @@ library(circlize)
 library(viridisLite)
 ```
 
+## The Seurate object
 
-## The Seurate object 
 Store the new nmf data, project nmf data and UMAP visulization
-```{r transfer_learning, eval = (params$mode == "full")}
+
+``` r
 library(reticulate)
 use_virtualenv("r-reticulate", required = TRUE)
 py_install(c("scanpy", "anndata"), envname = "r-reticulate", pip = TRUE)
@@ -1174,10 +1112,12 @@ seurat_norm <- RunUMAP(
 )
 ```
 
+## Figure 4 — reference leanrning
 
-## Figure 4 — reference leanrning 
-Comparing the new data and project data in UMAP and heatmap and bubble plot.
-```{r figure4_panels}
+Comparing the new data and project data in UMAP and heatmap and bubble
+plot.
+
+``` r
 # Panel B and C
 cf_cells  <- WhichCells(seurat_norm, expression = disease == "cystic fibrosis")
 ct_counts <- table(seurat_norm$cell_type[cf_cells])
@@ -1890,6 +1830,13 @@ fig4 <- (
       heights = c(1.2, 1, 1, 1, 1),  
     )
 
+fig4
+```
+
+<img src="fig/figure4.png" width="100%" />
+
+``` r
+
 ggsave(
   "fig/figure4.png",
   fig4,
@@ -1897,4 +1844,3 @@ ggsave(
   device = ragg::agg_png
 )
 ```
-
