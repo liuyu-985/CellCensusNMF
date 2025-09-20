@@ -3,7 +3,7 @@ Figures – Code & Results
 
 ## Figure 2 – H matrix
 
-Loading the necessary libraries for Figure 2
+Loading the necessary libraries for Figure 2.
 
 ``` r
 library(ggplot2)
