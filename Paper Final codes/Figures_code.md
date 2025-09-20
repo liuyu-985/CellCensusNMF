@@ -358,7 +358,7 @@ ggsave("Figure2.pdf",
 
 ## Figure 3 – W matrix
 
-Loading the necessary libraries for Figure 3
+Loading the necessary libraries for Figure 3.
 
 ``` r
 library(ComplexHeatmap)
@@ -1112,7 +1112,8 @@ seurat_norm <- RunUMAP(
 
 ## Figure 4 — Panels
 
-Comparing the new NMF data and project NMF data in UMAP with cell types, diseases and factors. Also, the cosine similiarity heatmap arocss the factors. And the bubble plot of highly similiar factors.
+Comparing the new NMF data and project NMF data in UMAP with cell types, diseases and factors. 
+Also, the cosine similiarity heatmap arocss the factors. And the bubble plot of highly similiar factors.
 
 ``` r
 # Panel B and C

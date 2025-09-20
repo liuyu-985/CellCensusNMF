@@ -80,7 +80,7 @@ if (identical(params$mode, "quick")) {
   seurat_norm <- readRDS(paths$seurat_rds)
 
 } else {
-  # FULL mode: you’ll recompute these later in the "full-only" chunks.
+  # FULL mode: recompute these later in the "full-only" chunks.
   # summary_stats <- <expensive compute>
   # padj_all      <- <compute/read>
   # nes_narrow    <- <compute/read>
@@ -90,7 +90,7 @@ if (identical(params$mode, "quick")) {
 ```
 
 ## figure 2 -- H matrix
-Loading the necessary libraries for Figure 2
+Loading the necessary libraries for Figure 2.
 
 ```{r figure2_library_loading}
 library(ggplot2)
@@ -434,8 +434,8 @@ ggsave("Figure2.pdf",
        dpi    = 300)
 ```
 
-## figure 3 -- W matrix
-Loading the necessary libraries for Figure 3
+## Figure 3 – W matrix
+Loading the necessary libraries for Figure 3.
 
 ```{r figure3_library_loading}
 library(ComplexHeatmap)
@@ -456,7 +456,7 @@ library(BiocParallel)
 ```
 
 
-## Fgsea analysis for Figure 3 panel A. 
+## Fgsea analysis for Figure 3 panel A
 This chunk only runs in *full* mode.
 
 ```{r fgsea_analysis, eval = (params$mode == "full")}
@@ -525,7 +525,7 @@ padj_mat <- combined %>%
 
 
 ## Figure 3 — W matrix panel A
-The overall heatmap of genes sets and factors
+The overall heatmap of genes sets and factors.
 
 ```{r figure3_panel_A}
 if (!exists("padj_mat")) padj_mat <- padj_all
@@ -591,7 +591,7 @@ library(ggplot2)
 library(viridis)
 ```
 
-## Fgsea analysis for Figure 3 panel B. 
+## Fgsea analysis for Figure 3 panel B
 This chunk only runs in *full* mode.
  
 ```{r fgsea_analysis2, eval = (params$mode == "full")}
@@ -961,8 +961,8 @@ ggsave(
 )
 ```
 
-## figure 4 ---reference learning
-Loading the necessary libraries for Figure 4
+## Figure 4 — Reference learning
+Loading the necessary libraries for Figure 4.
 ```{r figure4_library_loading}
 library(Seurat)
 library(cowplot)
@@ -990,8 +990,8 @@ library(viridisLite)
 ```
 
 
-## The Seurate object 
-Store the new nmf data, project nmf data and UMAP visulization
+## The Seurat object 
+Store the new NMF data, project NMF data and UMAP visulization.
 ```{r transfer_learning, eval = (params$mode == "full")}
 library(reticulate)
 use_virtualenv("r-reticulate", required = TRUE)
@@ -1175,8 +1175,9 @@ seurat_norm <- RunUMAP(
 ```
 
 
-## Figure 4 — reference leanrning 
-Comparing the new data and project data in UMAP and heatmap and bubble plot.
+## Figure 4 — Panels
+Comparing the new NMF data and project NMF data in UMAP with cell types, diseases and factors. 
+Also, the cosine similiarity heatmap arocss the factors. And the bubble plot of highly similiar factors.
 ```{r figure4_panels}
 # Panel B and C
 cf_cells  <- WhichCells(seurat_norm, expression = disease == "cystic fibrosis")
