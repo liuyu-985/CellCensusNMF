@@ -22,7 +22,7 @@ High-res PDFs (for print):
 
 If already have the precomputed inputs, knit in **QUICK** mode to reproduce the figures without re-running long analyses.
 
-## Full recompute 
+## Full compute 
 
 Run FULL mode to recompute results from raw/intermediate inputs (e.g., .h5ad, embeddings). This is slower and needs more dependencies/data.
 
