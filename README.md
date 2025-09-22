@@ -28,11 +28,11 @@ Run FULL mode to recompute results from raw/intermediate inputs (e.g., .h5ad, em
 
 rmarkdown::render("Figures_code.Rmd", params = list(mode = "full"))
 
-Required inputs for FULL mode:
+- **`Required inputs for FULL mode (see [cell_census_datasets.py](cell_census_datasets.py)):
 
-adata_var_metadata_unique.csv
-
-adata_var_embeddings_unique.csv
-
+adata_obsm.csv
+adata_obs.csv
+adata_var_metadata.csv
+adata_var_embeddings.csv
 transfer_learning_data.h5ad
 
