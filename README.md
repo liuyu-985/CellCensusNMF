@@ -24,7 +24,7 @@ If already have the precomputed inputs, knit in **QUICK** mode to reproduce the 
 
 ## Full compute 
 
-Run FULL mode to recompute results from raw/intermediate inputs (e.g., .h5ad, embeddings). This is slower and needs more dependencies/data.
+Run FULL mode to recompute results from raw/intermediate inputs (e.g., .h5ad, embeddings). This needs more dependencies/data.
 
 rmarkdown::render("Figures_code.Rmd", params = list(mode = "full"))
 
