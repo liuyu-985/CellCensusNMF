@@ -11,11 +11,7 @@ Reproducible code & outputs for the manuscript figures.
 
 - **`Figures_code.Rmd`** – the source R Markdown with all code & inline commentary.  
 - **`Figures_code.md`** – the knitted, GitHub-friendly output (shows code + PNGs).  
-- **`fig/`** – PNGs used by the markdown and exported PDFs (e.g., `Figure2.pdf`).  
-
-High-res PDFs (for print):  
-`fig/Figure2.pdf`, `fig/Figure3.pdf`, `fig/Figure4.pdf` (if generated).
-
+- **`fig/`** – PNGs used by the markdown (e.g., `Figure2.png`).  
 ---
 
 ## Quick start 
