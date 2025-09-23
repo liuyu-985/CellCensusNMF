@@ -1,4 +1,4 @@
-# CellCensusNMF — Figures
+# CellCensusNMF
 
 Reproducible code & outputs for the manuscript figures.
 
